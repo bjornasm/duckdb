@@ -45,8 +45,6 @@ qgraph_css = """
 	background-color: #fff100;
 }
 """
-
-
 class NodeTiming:
 
     def __init__(self, phase: str, time: float) -> object:
@@ -104,6 +102,16 @@ def get_child_timings(top_node: object, query_timings: object) -> str:
     for child in top_node['children']:
         get_child_timings(child, query_timings)
 
+def pretty_print_seconds(seconds: float):
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    s = round(s,4)
+    if h > 0:
+        return f'{h:.0f}hr {m:02.0f}min {s:.2f}s'
+    elif m > 0:
+        return f'{m:02.0f}min {s:.2f}s'
+    else:
+        return f'{s:.4f}s'
 
 color_map = {
     "HASH_JOIN": "#ffffba",
@@ -121,7 +129,7 @@ color_map = {
 }
 
 
-def get_node_body(name: str, result: str, cardinality: float, extra_info: str) -> str:
+def get_node_body(name: str, timing: float, cardinality: float, extra_info: str) -> str:
     node_style = ""
     stripped_name = name.strip()
     if stripped_name in color_map:
@@ -130,10 +138,10 @@ def get_node_body(name: str, result: str, cardinality: float, extra_info: str) -
     body = f"<span class=\"tf-nc\" style=\"{node_style}\">"
     body += "<div class=\"node-body\">"
     new_name = name.replace("_", " ")
-    body += f"<p> <b>{new_name} ({result}s) </b></p>"
-    body += f"<p> ---------------- </p>"
+    body += f"<p> <b>{new_name} ({round(timing,4)}s) </b></p>"
+    body += "<p> ---------------- </p>"
     body += f"<p> {extra_info} </p>"
-    body += f"<p> ---------------- </p>"
+    body += "<p> ---------------- </p>"
     body += f"<p> cardinality = {cardinality} </p>"
     # TODO: Expand on timing. Usually available from a detailed profiling
     body += "</div>"
@@ -167,7 +175,7 @@ def generate_tree_recursive(json_graph: object) -> str:
 def generate_timing_html(graph_json: object, query_timings: object) -> object:
     json_graph = json.loads(graph_json)
     gather_timing_information(json_graph, query_timings)
-    total_time = float(json_graph['operator_timing'])
+    total_time = query_timings.get_sum_of_all_timings()
     table_head = """
 	<table class=\"styled-table\"> 
 		<thead>
@@ -181,7 +189,7 @@ def generate_timing_html(graph_json: object, query_timings: object) -> object:
     table_body = "<tbody>"
     table_end = "</tbody></table>"
 
-    execution_time = query_timings.get_sum_of_all_timings()
+    execution_time = execution_time = json_graph['latency']
 
     all_phases = query_timings.get_phases()
     query_timings.add_node_timing(NodeTiming("TOTAL TIME", total_time))
@@ -194,7 +202,7 @@ def generate_timing_html(graph_json: object, query_timings: object) -> object:
         table_body += f"""
 	<tr>
 			<td>{phase_column}</td>
-            <td>{summarized_phase.time}</td>
+            <td>{pretty_print_seconds(summarized_phase.time)}</td>
             <td>{round(summarized_phase.percentage*100,4)}%</td>
     </tr>
 """
